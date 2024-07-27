@@ -178,14 +178,14 @@ class ManoLayer(Module):
         else:
             if share_betas:
                 th_betas = th_betas.mean(0, keepdim=True).expand(th_betas.shape[0], 10)
-            th_v_shaped = torch.matmul(self.th_shapedirs,
-                                       th_betas.transpose(1, 0)).permute(
-                                           2, 0, 1) + self.th_v_template
+            shape_delta = torch.matmul(self.th_shapedirs, th_betas.transpose(1, 0)).permute(2, 0, 1) 
+            th_v_shaped = shape_delta + self.th_v_template
             th_j = torch.matmul(self.th_J_regressor, th_v_shaped)
             # th_pose_map should have shape 20x135
 
-        th_v_posed = th_v_shaped + torch.matmul(
-            self.th_posedirs, th_pose_map.transpose(0, 1)).permute(2, 0, 1)
+        pose_delta = torch.matmul( self.th_posedirs, th_pose_map.transpose(0, 1)).permute(2, 0, 1)
+        th_v_posed = th_v_shaped + pose_delta
+
         # Final T pose with transformation done !
 
         # Global rigid transformation
@@ -242,8 +242,14 @@ class ManoLayer(Module):
                        device=th_T.device),
         ], 1)
 
+
         th_verts = (th_T * th_rest_shape_h.unsqueeze(1)).sum(2).transpose(2, 1)
         th_verts = th_verts[:, :, :3]
+
+        # import trimesh
+        # pc = trimesh.PointCloud(th_verts.detach().cpu().numpy()[0])
+        # pc.export('th_verts.ply')
+
         th_jtr = th_results_global[:, :, :3, 3]
         # In addition to MANO reference joints we sample vertices on each finger
         # to serve as finger tips
@@ -271,4 +277,4 @@ class ManoLayer(Module):
         # Scale to milimeters
         th_verts = th_verts * 1000
         th_jtr = th_jtr * 1000
-        return th_verts, th_jtr
+        return th_verts, th_jtr, th_results2[0], pose_delta, shape_delta
